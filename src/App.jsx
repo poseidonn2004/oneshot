@@ -120,7 +120,11 @@ const QUICK_TAGS = [
   { label: 'Chỉ tay CTA 👇', tag: '[Chỉ tay xuống dưới 👇]', color: 'bg-rose-500/20 text-rose-300 border-rose-500/40' },
 ];
 
+// Phong cách review / chào hàng bằng khẩu ngữ (bán hàng thân thiện, thuyết phục)
+const SALES_STYLE = 'Review / Chào hàng sản phẩm (Khẩu ngữ bán hàng)';
+
 const STYLES = [
+  SALES_STYLE,
   'Người dùng thật chia sẻ (Review mộc)',
   'Tâm sự đời thường / Kể chuyện thật',
   'Gần gũi như bạn bè tám chuyện',
@@ -297,10 +301,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('workspace');
 
   // State Cấu hình AI & Xưng hô tùy chỉnh
-  const [topic, setTopic] = useState('Trải nghiệm thật của mình sau 1 tháng dậy sớm 6h sáng và bỏ thói quen uống trà sữa chiều');
-  const [style, setStyle] = useState('Người dùng thật chia sẻ (Review mộc)');
-  const [selfPronoun, setSelfPronoun] = useState('mình');
-  const [audiencePronoun, setAudiencePronoun] = useState('các bạn');
+  const [topic, setTopic] = useState('Review thật dịch vụ dán decal đổi màu xe: mẫu vân, độ bền và chế độ bảo hành');
+  const [style, setStyle] = useState(SALES_STYLE);
+  const [selfPronoun, setSelfPronoun] = useState('em');
+  const [audiencePronoun, setAudiencePronoun] = useState('các bác');
   const [targetDuration, setTargetDuration] = useState(45);
   const [wpm, setWpm] = useState(140);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -511,30 +515,52 @@ QUY TẮC ĐẦU RA BẮT BUỘC: Chỉ trả về DUY NHẤT một object JSON 
     const activeSelf = selfPronoun.trim() || 'mình';
     const activeAudience = audiencePronoun.trim() || 'các bạn';
 
-    const systemPrompt = `Bạn là một người sáng tạo nội dung thực tế và gần gũi, chuyên viết kịch bản thoại quay video One-Shot (quay 1 cú máy liền mạch không cắt cảnh) bằng tiếng Việt.
-NGUYÊN TẮC VÀNG VỀ VĂN PHONG (CỰC KỲ QUAN TRỌNG):
-1. Sử dụng 100% VĂN NÓI ĐỜI THƯỜNG, mộc mạc, chân thật như một người dùng thật đang ngồi tâm sự hoặc kể lại trải nghiệm cá nhân cho bạn bè nghe.
-2. TUYỆT ĐỐI TRÁNH văn phong quảng cáo sáo rỗng, văn viết sách vở, câu chữ kịch bản cứng nhắc (CẤM dùng các từ kiểu: "Bạn đang đau đầu vì...", "Siêu phẩm không thể bỏ lỡ", "Giải pháp hoàn hảo", "Thứ nhất là, thứ hai là...", "Hãy cùng khám phá").
-3. Dùng các từ nối và khẩu ngữ tự nhiên vừa phải để câu nói có hồn: "Nói thật với ${activeAudience} là...", "Thực sự đợt trước ${activeSelf} cũng...", "Công nhận một điều là...", "Cái điểm mà ${activeSelf} ưng nhất...", "${activeAudience} biết sao không...". Câu văn chia thành các vế ngắn gọn để nói 1 hơi không bị vấp.
-4. QUY TẮC XƯNG HÔ BẮT BUỘC: Người nói tự xưng là "${activeSelf}" và gọi người xem là "${activeAudience}" xuyên suốt từ đầu đến cuối kịch bản.
-5. Bắt buộc chèn các chỉ dẫn diễn xuất, cử chỉ tự nhiên và nhịp lấy hơi trong ngoặc vuông: [Nhìn thẳng ống kính 👀], [Zoom / Tiến lại gần 🎥], [Nhịp thở 🫁], [Đổi góc / Xoay người 🔄], [Cầm đạo cụ 📦], [Nhịp thở / Nghỉ 1s].
-6. Đánh dấu các từ cần nhấn giọng tự nhiên bằng cặp dấu sao kép: **từ khóa nhấn mạnh**.
-7. Tổng số từ thoại đọc thực tế (không tính phần trong ngoặc vuông) khoảng ${targetWords} từ để khớp với thời lượng ${targetDuration} giây ở tốc độ nói ${wpm} từ/phút.`;
+    const isSalesTone = style === SALES_STYLE;
 
-    const userPrompt = `Hãy viết kịch bản thoại One-Shot đời thường, chân thật với thông tin sau:
-- Chủ đề / Trải nghiệm muốn chia sẻ: "${topic}"
+    const commonRules = `Bạn là người viết kịch bản thoại quay video One-Shot (quay 1 cú máy liền mạch, không cắt cảnh) bằng tiếng Việt.
+QUY TẮC CHUNG (BẮT BUỘC):
+- Xưng hô: người nói tự xưng "${activeSelf}", gọi người xem là "${activeAudience}" xuyên suốt từ đầu đến cuối kịch bản.
+- Câu văn chia thành các vế ngắn gọn, đọc một hơi không bị vấp.
+- Chèn chỉ dẫn diễn xuất, cử chỉ và nhịp lấy hơi trong ngoặc vuông: [Nhìn thẳng ống kính 👀], [Zoom / Tiến lại gần 🎥], [Nhịp thở 🫁], [Đổi góc / Xoay người 🔄], [Cầm đạo cụ 📦], [Nhịp thở / Nghỉ 1s]. Ngoặc vuông CHỈ dùng cho chỉ dẫn diễn xuất, tuyệt đối không dùng để đánh dấu tên, địa chỉ, giá hay ghi chú.
+- Đánh dấu các từ cần nhấn giọng bằng cặp dấu sao kép: **từ khóa nhấn mạnh**.
+- Tổng số từ thoại đọc thực tế (không tính phần trong ngoặc vuông) khoảng ${targetWords} từ để khớp thời lượng ${targetDuration} giây ở tốc độ nói ${wpm} từ/phút.`;
+
+    const salesRules = `GIỌNG ĐIỆU BẮT BUỘC: REVIEW / CHÀO HÀNG BẰNG KHẨU NGỮ (ƯU TIÊN SỐ 1)
+1. Viết như đang tư vấn trực tiếp cho khách quen: thân thiện, nhiệt tình, tự tin và trấn an. Dùng khẩu ngữ đời thường ("${activeAudience} ạ", "được hết nhé", "${activeAudience} cứ yên tâm", "em cam kết luôn").
+2. Đi đúng trình tự 5 nhịp:
+   (1) Hook: hỏi hoặc chạm đúng điều khách đang băn khoăn (mẫu mã, màu vân, giá, độ bền, có để lại keo khi bóc không...).
+   (2) Ưu điểm cụ thể: nêu lợi ích thực tế nhìn thấy được (điểm nhấn, che xước, lên form, độ bền...), càng chi tiết càng đáng tin.
+   (3) Cam kết chất lượng: bảo hành, thi công sạch, không để lại keo, không bong tróc... nói chắc nịch để xóa bỏ e ngại.
+   (4) Mở rộng dịch vụ: gợi thêm sản phẩm/dịch vụ liên quan phù hợp (PPF, phim cách nhiệt, dán nóc, vệ sinh nội thất...).
+   (5) CTA + định danh: mời liên hệ tư vấn/kết bạn/để lại bình luận, rồi chốt bằng một câu giới thiệu ngắn gọn về bản thân hoặc bên làm (tên, nơi làm, số năm kinh nghiệm). Nếu chủ đề không có tên/địa chỉ cụ thể thì nói tự nhiên kiểu "bên em", "em ở gara", "em làm bên chỗ các bác hay qua" — KHÔNG bịa tên và KHÔNG để chỗ trống như [Tên].
+3. Bán hàng bằng trải nghiệm thật và chi tiết cụ thể; TUYỆT ĐỐI không dùng từ sáo rỗng ("siêu phẩm", "giải pháp hoàn hảo", "không thể bỏ lỡ", "số 1 thị trường").
+4. Nếu chủ đề không phải sản phẩm/dịch vụ: vẫn giữ giọng thân thiện, nhiệt tình, nhưng bỏ phần cam kết chất lượng và định danh bản thân.`;
+
+    const naturalRules = `GIỌNG ĐIỆU BẮT BUỘC: CHIA SẺ ĐỜI THƯỜNG, MỘC MẠC
+1. Sử dụng 100% VĂN NÓI ĐỜI THƯỜNG, chân thật như một người dùng thật đang tâm sự hoặc kể lại trải nghiệm cá nhân cho bạn bè nghe.
+2. TUYỆT ĐỐI TRÁNH văn phong quảng cáo sáo rỗng, văn viết sách vở, câu chữ kịch bản cứng nhắc (CẤM: "Bạn đang đau đầu vì...", "Siêu phẩm không thể bỏ lỡ", "Giải pháp hoàn hảo", "Thứ nhất là, thứ hai là...", "Hãy cùng khám phá").
+3. Dùng từ nối và khẩu ngữ tự nhiên vừa phải: "Nói thật với ${activeAudience} là...", "Thực sự đợt trước ${activeSelf} cũng...", "Công nhận một điều là...", "Cái điểm mà ${activeSelf} ưng nhất...", "${activeAudience} biết sao không...".`;
+
+    const systemPrompt = `${commonRules}\n\n${isSalesTone ? salesRules : naturalRules}`;
+
+    const userPrompt = `Hãy viết kịch bản thoại One-Shot theo đúng giọng điệu đã yêu cầu với thông tin sau:
+- Chủ đề / Sản phẩm / Trải nghiệm: "${topic}"
 - Phong cách nói: ${style}
 - Xưng hô bắt buộc: Tự xưng là "${activeSelf}" - Gọi người xem là "${activeAudience}"
 - Thời lượng mục tiêu: ${targetDuration} giây (~${targetWords} từ thoại).
-Hãy viết sao cho khi người quay đọc lên nghe tự nhiên y như đang trò chuyện trực tiếp ngoài đời thực, không ai nghĩ là đang đọc kịch bản.`;
+${isSalesTone
+      ? `Viết như đang tư vấn trực tiếp cho khách: mở bằng nỗi băn khoăn thật của "${activeAudience}", nêu ưu điểm cụ thể, cam kết chắc nịch, gợi mở dịch vụ liên quan, chốt bằng lời mời liên hệ và giới thiệu ngắn gọn về bản thân/bên làm.`
+      : 'Hãy viết sao cho khi người quay đọc lên nghe tự nhiên y như đang trò chuyện trực tiếp ngoài đời thực, không ai nghĩ là đang đọc kịch bản.'}`;
 
     try {
       const result = await callAI(userPrompt, systemPrompt);
-      setScriptTitle(result.title || `Chia sẻ thật: ${topic.slice(0, 30)}...`);
+      setScriptTitle(result.title || `Kịch bản: ${topic.slice(0, 30)}...`);
       setHookText(result.hook || '');
       setBodyText(result.body || '');
       setCtaText(result.cta || '');
-      showToast(`Đã tạo kịch bản văn nói đời thường (${activeSelf} - ${activeAudience})!`);
+      showToast(
+        `Đã tạo kịch bản ${isSalesTone ? 'review/chào hàng' : 'văn nói đời thường'} (${activeSelf} - ${activeAudience})!`
+      );
     } catch (error) {
       setAiError(
         error?.message
@@ -560,20 +586,28 @@ Hãy viết sao cho khi người quay đọc lên nghe tự nhiên y như đang 
     const activeSelf = selfPronoun.trim() || 'mình';
     const activeAudience = audiencePronoun.trim() || 'các bạn';
 
-    const systemPrompt = `Bạn là chuyên gia biên tập lời thoại One-Shot tự nhiên.
-Nhiệm vụ của bạn là viết lại lời thoại sao cho giống hệt VĂN NÓI ĐỜI THƯỜNG của người dùng thật đang chia sẻ trải nghiệm cá nhân, loại bỏ mọi từ ngữ sáo rỗng, sách vở hay mùi quảng cáo.
+    const isSalesTone = style === SALES_STYLE;
+
+    const systemPrompt = `Bạn là chuyên gia biên tập lời thoại One-Shot.
 BẮT BUỘC dùng cách xưng hô: Người nói xưng "${activeSelf}" - Gọi người xem là "${activeAudience}".
+${isSalesTone
+      ? `GIỌNG ĐIỆU ĐÍCH: khẩu ngữ bán hàng/review — thân thiện, nhiệt tình, tự tin, trấn an; giữ đúng trình tự hook (chạm đúng băn khoăn) → ưu điểm cụ thể → cam kết chất lượng → mở rộng dịch vụ → CTA + định danh bản thân.`
+      : 'GIỌNG ĐIỆU ĐÍCH: văn nói đời thường, mộc mạc, chân thật như người dùng thật đang chia sẻ trải nghiệm; loại bỏ mọi từ ngữ sáo rỗng, sách vở hay mùi quảng cáo.'}
 Giữ nguyên hoặc bổ sung hợp lý các thẻ [Nhịp thở 🫁], [Zoom / Tiến lại gần 🎥], [Đổi góc / Xoay người 🔄], [Nhìn thẳng ống kính 👀] và bôi đậm **từ khóa nhấn giọng**.`;
 
     let taskSpecific = '';
     if (mode === 'natural_spoken') {
-      taskSpecific = `Chuyển toàn bộ kịch bản này sang VĂN NÓI ĐỜI THƯỜNG, mộc mạc, gần gũi như "${activeSelf}" đang ngồi tâm sự thật lòng với "${activeAudience}". Thay các từ ngữ sách vở/quảng cáo bằng ngôn từ đời thực ("nói thật với ${activeAudience}", "trải nghiệm của ${activeSelf} là", "công nhận là...").`;
+      taskSpecific = isSalesTone
+        ? `Viết lại toàn bộ kịch bản thành khẩu ngữ review/chào hàng thân thiện, nhiệt tình, tự tin: mở bằng nỗi băn khoăn thật của "${activeAudience}", nêu ưu điểm cụ thể, cam kết chất lượng chắc nịch, gợi mở dịch vụ liên quan, chốt bằng CTA và giới thiệu ngắn gọn về bản thân/bên làm.`
+        : `Chuyển toàn bộ kịch bản này sang VĂN NÓI ĐỜI THƯỜNG, mộc mạc, gần gũi như "${activeSelf}" đang ngồi tâm sự thật lòng với "${activeAudience}". Thay các từ ngữ sách vở/quảng cáo bằng ngôn từ đời thực ("nói thật với ${activeAudience}", "trải nghiệm của ${activeSelf} là", "công nhận là...").`;
     } else if (mode === 'breath_and_flow') {
       taskSpecific = `Chia nhỏ các câu dài thành nhịp nói ngắn dễ thở, chèn thêm các điểm [Nhịp thở 🫁] và **nhấn giọng** tự nhiên, đồng thời đồng bộ xưng hô "${activeSelf} - ${activeAudience}".`;
     } else if (mode === 'shorten') {
       taskSpecific = `Rút gọn và cô đọng kịch bản theo văn nói tự nhiên để vừa khít thời lượng ${targetDuration} giây (khoảng ${targetWords} từ thoại), xưng "${activeSelf}" - gọi "${activeAudience}".`;
     } else if (mode === 'punchy_hook') {
-      taskSpecific = `Viết lại câu Hook (3-5s đầu) thật đời thường, chạm đúng tâm lý hoặc trải nghiệm thật khiến "${activeAudience}" đồng cảm dừng lại xem ngay, không dùng câu hỏi quảng cáo sáo rỗng.`;
+      taskSpecific = isSalesTone
+        ? `Viết lại câu Hook (3-5s đầu) thật đời thường, chạm đúng băn khoăn của "${activeAudience}" về sản phẩm/dịch vụ (mẫu mã, độ bền, giá, có để lại keo...) để họ dừng lại xem ngay, không dùng câu quảng cáo sáo rỗng.`
+        : `Viết lại câu Hook (3-5s đầu) thật đời thường, chạm đúng tâm lý hoặc trải nghiệm thật khiến "${activeAudience}" đồng cảm dừng lại xem ngay, không dùng câu hỏi quảng cáo sáo rỗng.`;
     }
 
     const userPrompt = `Yêu cầu: ${taskSpecific}
