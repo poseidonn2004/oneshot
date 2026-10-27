@@ -268,6 +268,28 @@ const FormattedScriptText = ({ text, isTeleprompter = false }) => {
 };
 
 // ==========================================
+// BÓC TÁCH JSON TỪ PHẢN HỒI AI (CHỐNG LỖI MARKDOWN / VĂN BẢN THỪA)
+// ==========================================
+const parseAIJson = (raw) => {
+  if (!raw) throw new Error('AI không trả về nội dung');
+
+  let text = String(raw).trim();
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Thử tìm object JSON đầu tiên trong câu trả lời
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start !== -1 && end > start) {
+      return JSON.parse(text.slice(start, end + 1));
+    }
+    throw new Error('Phản hồi của AI không phải JSON hợp lệ');
+  }
+};
+
+// ==========================================
 // COMPONENT CHÍNH: APP
 // ==========================================
 export default function App() {
@@ -393,36 +415,84 @@ export default function App() {
   }, [hookText, bodyText, ctaText, wpm, targetDuration]);
 
   // ==========================================
-  // TÍCH HỢP GEMINI API (VĂN PHONG NÓI ĐỜI THƯỜNG & XƯNG HÔ TÙY CHỈNH)
+  // TÍCH HỢP VIETAPI (OPENAI-COMPATIBLE) - VĂN PHONG NÓI ĐỜI THƯỜNG
+  // Base URL: https://api.vietapi.tech/v1 (đổi qua VITE_VIETAPI_BASE_URL)
+  // Model:    gpt / opus / claude-sonnet-5 / deepseek-v4-flash... (VITE_VIETAPI_MODEL)
   // ==========================================
-  const callGeminiAPI = async (promptText, systemInstructionText, schema) => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+  const callAI = async (promptText, systemInstructionText) => {
+    const apiKey = import.meta.env.VITE_VIETAPI_API_KEY || '';
+    const baseUrl = (import.meta.env.VITE_VIETAPI_BASE_URL || 'https://api.vietapi.tech/v1').replace(/\/+$/, '');
+    const model = import.meta.env.VITE_VIETAPI_MODEL || 'gpt';
 
-    const payload = {
-      contents: [{ parts: [{ text: promptText }] }],
-      systemInstruction: { parts: [{ text: systemInstructionText }] },
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: schema
-      }
-    };
+    if (!apiKey) {
+      throw new Error('Chưa cấu hình VITE_VIETAPI_API_KEY trong file .env');
+    }
 
+    const jsonRule = `
+
+QUY TẮC ĐẦU RA BẮT BUỘC: Chỉ trả về DUY NHẤT một object JSON hợp lệ, không kèm markdown, không giải thích gì thêm. Cấu trúc chính xác:
+{"title":"...","hook":"...","body":"...","cta":"..."}
+- title: tiêu đề ngắn gọn cho kịch bản
+- hook: 3-5 giây mở đầu
+- body: phần chia sẻ chính
+- cta: lời nhắn/lời kêu gọi cuối`;
+
+    const messages = [
+      { role: 'system', content: systemInstructionText + jsonRule },
+      { role: 'user', content: promptText }
+    ];
+
+    let useJsonMode = true;
     let delay = 1000;
+
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
-        const res = await fetch(apiUrl, {
+        const payload = {
+          model,
+          messages,
+          temperature: 0.9,
+          ...(useJsonMode ? { response_format: { type: 'json_object' } } : {})
+        };
+
+        const res = await fetch(`${baseUrl}/chat/completions`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`
+          },
           body: JSON.stringify(payload)
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        if (!res.ok) {
+          const detail = await res.text().catch(() => '');
+
+          // Model không hỗ trợ JSON mode -> tắt đi và thử lại ngay
+          if (res.status === 400 && useJsonMode) {
+            useJsonMode = false;
+            continue;
+          }
+
+          const hints = {
+            401: 'API key VietAPI không hợp lệ hoặc đã hết hạn',
+            402: 'Tài khoản VietAPI đã hết credit',
+            403: 'API key không có quyền dùng model này',
+            404: 'Không tìm thấy model đã cấu hình trong file .env',
+            429: 'VietAPI đang giới hạn tốc độ, vui lòng thử lại sau'
+          };
+          const error = new Error(
+            hints[res.status] ||
+              `VietAPI lỗi HTTP ${res.status}${detail ? `: ${detail.slice(0, 160)}` : ''}`
+          );
+          error.noRetry = res.status !== 429 && res.status < 500;
+          throw error;
+        }
+
         const data = await res.json();
-        const rawJson = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (!rawJson) throw new Error('Không nhận được phản hồi hợp lệ từ AI');
-        return JSON.parse(rawJson);
+        const raw = data?.choices?.[0]?.message?.content;
+        if (!raw) throw new Error('Không nhận được phản hồi hợp lệ từ AI');
+        return parseAIJson(raw);
       } catch (err) {
-        if (attempt === 3) throw err;
+        if (err.noRetry || attempt === 3) throw err;
         await new Promise(r => setTimeout(r, delay));
         delay *= 2;
       }
@@ -458,27 +528,19 @@ NGUYÊN TẮC VÀNG VỀ VĂN PHONG (CỰC KỲ QUAN TRỌNG):
 - Thời lượng mục tiêu: ${targetDuration} giây (~${targetWords} từ thoại).
 Hãy viết sao cho khi người quay đọc lên nghe tự nhiên y như đang trò chuyện trực tiếp ngoài đời thực, không ai nghĩ là đang đọc kịch bản.`;
 
-    const schema = {
-      type: "OBJECT",
-      properties: {
-        title: { type: "STRING" },
-        hook: { type: "STRING" },
-        body: { type: "STRING" },
-        cta: { type: "STRING" }
-      },
-      required: ["title", "hook", "body", "cta"],
-      propertyOrdering: ["title", "hook", "body", "cta"]
-    };
-
     try {
-      const result = await callGeminiAPI(userPrompt, systemPrompt, schema);
+      const result = await callAI(userPrompt, systemPrompt);
       setScriptTitle(result.title || `Chia sẻ thật: ${topic.slice(0, 30)}...`);
       setHookText(result.hook || '');
       setBodyText(result.body || '');
       setCtaText(result.cta || '');
       showToast(`Đã tạo kịch bản văn nói đời thường (${activeSelf} - ${activeAudience})!`);
     } catch (error) {
-      setAiError('Không thể kết nối AI lúc này. Vui lòng thử lại sau giây lát.');
+      setAiError(
+        error?.message
+          ? `Không thể tạo kịch bản: ${error.message}`
+          : 'Không thể kết nối AI lúc này. Vui lòng thử lại sau giây lát.'
+      );
       showToast('Lỗi khi gọi AI tạo kịch bản', 'error');
     } finally {
       setIsGenerating(false);
@@ -523,27 +585,15 @@ Kịch bản hiện tại:
 - Body: ${bodyText}
 - CTA: ${ctaText}`;
 
-    const schema = {
-      type: "OBJECT",
-      properties: {
-        title: { type: "STRING" },
-        hook: { type: "STRING" },
-        body: { type: "STRING" },
-        cta: { type: "STRING" }
-      },
-      required: ["title", "hook", "body", "cta"],
-      propertyOrdering: ["title", "hook", "body", "cta"]
-    };
-
     try {
-      const result = await callGeminiAPI(userPrompt, systemPrompt, schema);
+      const result = await callAI(userPrompt, systemPrompt);
       setScriptTitle(result.title || scriptTitle);
       setHookText(result.hook || hookText);
       setBodyText(result.body || bodyText);
       setCtaText(result.cta || ctaText);
       showToast('Đã tinh chỉnh sang văn nói đời thường tự nhiên!');
     } catch (err) {
-      showToast('Không thể tối ưu kịch bản lúc này.', 'error');
+      showToast(err?.message || 'Không thể tối ưu kịch bản lúc này.', 'error');
     } finally {
       setIsOptimizing(false);
     }
